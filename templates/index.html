@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dhaka WASA Bill Checker - Simplified</title>
+  <title>Dhaka WASA Bill Checker - Manual</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="container">
     <h1>💧 Dhaka WASA Bill Checker</h1>
-    <p class="subtitle">Quickly check last month's bill status.</p>
+    <p class="subtitle">Enter Account details and Date Range (DD/MM/YYYY) to check bill.</p>
     
     <form method="POST">
       <input type="text" name="userid" placeholder="Account Number" required>
       <input type="password" name="password" placeholder="Password" required>
+      
+      <input type="text" name="from_date" placeholder="From Date (e.g., 01/01/2024)" pattern="\d{2}/\d{2}/\d{4}" title="Format: DD/MM/YYYY" required>
+      <input type="text" name="to_date" placeholder="To Date (e.g., 31/01/2024)" pattern="\d{2}/\d{2}/\d{4}" title="Format: DD/MM/YYYY" required>
       <button type="submit">Check Bill</button>
     </form>
 
@@ -35,7 +38,7 @@
 
       {% if data.bill %}
       <div class="card bill-card">
-        <h2>Latest Bill Details ({{ data.bill['Bill Month'] }} - Previous Month)</h2>
+        <h2>Bill Details (Found: {{ data.bill['Bill Month'] }})</h2> 
         <ul>
           <li><strong>Bill Month:</strong> {{ data.bill['Bill Month'] }}</li>
           <li><strong>Total Bill Amount:</strong> {{ data.bill['Total Bill'] }} BDT</li>
@@ -50,7 +53,7 @@
       </div>
       {% else %}
       <div class="card no-bill">
-          <p>No bill details found for the previous month for this account. The automated date search returned no records.</p>
+          <p>No bill details found for the given date range ({{ data.info['Name'] | default("your account") }}).</p>
       </div>
       {% endif %}
     {% endif %}
