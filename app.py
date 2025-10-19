@@ -4,58 +4,74 @@ from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-def get_dwasa_bill(user_id, password):
+def get_latest_bill(user_id, password):
     url = "http://app.dwasa.org.bd/index.php?type_name=member&page_name=acc_index&panel_index=1"
     payload = {"userId": user_id, "password": password}
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/x-www-form-urlencoded"
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    r = requests.post(url, data=payload, headers=headers)
+
+    if "Account No" not in r.text:
+        return None
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    info_text = soup.get_text()
+
+    # Helper to extract text between two points
+    def extract_between(text, start, end):
+        try:
+            return text.split(start)[1].split(end)[0].strip()
+        except:
+            return ""
+
+    # Account info
+    info = {
+        "Account No": extract_between(info_text, "Account No :", "Opening Balance"),
+        "Name": extract_between(info_text, "Name:", "Address:"),
+        "Meter No": extract_between(info_text, "Meter No.:", "Meter Installation Date:"),
+        "Cell No": extract_between(info_text, "Cell No:", "Email:"),
+        "Address": extract_between(info_text, "Address:", "Water Status:")
     }
 
-    response = requests.post(url, data=payload, headers=headers)
-    if "Bill No" not in response.text:
-        return None
-
-    soup = BeautifulSoup(response.text, "html.parser")
+    # Find bill table
     table = soup.find("table")
     if not table:
-        return None
+        return {"info": info, "bill": None}
 
     rows = table.find_all("tr")[1:]
-    bills = []
+    if not rows:
+        return {"info": info, "bill": None}
 
-    for row in rows:
-        cols = [c.get_text(strip=True) for c in row.find_all("td")]
-        if len(cols) >= 10:
-            bills.append({
-                "Bill No": cols[0],
-                "Issue Date": cols[1],
-                "Bill Month": cols[2],
-                "Water Bill": cols[3],
-                "Sewer Bill": cols[4],
-                "VAT": cols[5],
-                "Bill Amt": cols[6],
-                "Surcharge": cols[7],
-                "Total Bill": cols[8],
-                "Paid Date": cols[9],
-                "Paid Amt": cols[10] if len(cols) > 10 else "",
-                "Status": cols[11] if len(cols) > 11 else "",
-                "Balance": cols[12] if len(cols) > 12 else ""
-            })
-    return bills
+    # Take last (latest) bill row
+    last_row = rows[-1]
+    cols = [c.get_text(strip=True) for c in last_row.find_all("td")]
+
+    bill = {
+        "Bill No": cols[0],
+        "Issue Date": cols[1],
+        "Bill Month": cols[2],
+        "Water Bill": cols[3],
+        "VAT": cols[5],
+        "Total Bill": cols[8],
+        "Paid Date": cols[9],
+        "Status": cols[11] if len(cols) > 11 else "Unknown"
+    }
+
+    return {"info": info, "bill": bill}
 
 
 @app.route("/", methods=["GET", "POST"])
 def home():
-    bills = None
+    data = None
     error = None
     if request.method == "POST":
         user_id = request.form["userid"]
         password = request.form["password"]
-        bills = get_dwasa_bill(user_id, password)
-        if not bills:
-            error = "No bill found or invalid credentials."
-    return render_template("index.html", bills=bills, error=error)
+        data = get_latest_bill(user_id, password)
+        if not data:
+            error = "Invalid account or no bill found."
+
+    return render_template("index.html", data=data, error=error)
 
 
 if __name__ == "__main__":
