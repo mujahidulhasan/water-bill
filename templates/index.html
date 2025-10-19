@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Dhaka WASA Bill Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dhaka WASA Bill Checker - Simplified</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="container">
     <h1>💧 Dhaka WASA Bill Checker</h1>
+    <p class="subtitle">Quickly check last month's bill status.</p>
+    
     <form method="POST">
       <input type="text" name="userid" placeholder="Account Number" required>
       <input type="password" name="password" placeholder="Password" required>
@@ -19,7 +22,7 @@
     {% endif %}
 
     {% if data %}
-      <div class="card">
+      <div class="card info-card">
         <h2>Account Information</h2>
         <ul>
           <li><strong>Account No:</strong> {{ data.info['Account No'] }}</li>
@@ -31,23 +34,23 @@
       </div>
 
       {% if data.bill %}
-      <div class="card">
-        <h2>Latest Bill Details</h2>
+      <div class="card bill-card">
+        <h2>Latest Bill Details ({{ data.bill['Bill Month'] }} - Previous Month)</h2>
         <ul>
           <li><strong>Bill Month:</strong> {{ data.bill['Bill Month'] }}</li>
-          <li><strong>Issue Date:</strong> {{ data.bill['Issue Date'] }}</li>
-          <li><strong>Water Bill:</strong> {{ data.bill['Water Bill'] }}</li>
-          <li><strong>VAT:</strong> {{ data.bill['VAT'] }}</li>
-          <li><strong>Total Bill:</strong> {{ data.bill['Total Bill'] }}</li>
-          <li><strong>Paid Date:</strong> {{ data.bill['Paid Date'] }}</li>
+          <li><strong>Total Bill Amount:</strong> {{ data.bill['Total Bill'] }} BDT</li>
           <li><strong>Status:</strong>
-            {% if "unpaid" in data.bill['Status']|lower %}
-              ⚠️ Unpaid
+            {% if "unpaid" in data.bill['Status']|lower or "issued" in data.bill['Status']|lower %}
+              <span class="status-unpaid">⚠️ {{ data.bill['Status'] }} (Unpaid)</span>
             {% else %}
-              ✅ Paid
+              <span class="status-paid">✅ {{ data.bill['Status'] }} (Paid)</span>
             {% endif %}
           </li>
         </ul>
+      </div>
+      {% else %}
+      <div class="card no-bill">
+          <p>No bill details found for the previous month for this account. The automated date search returned no records.</p>
       </div>
       {% endif %}
     {% endif %}
