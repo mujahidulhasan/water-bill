@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DWASA Bill Checker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>💧 DWASA Bill Checker</h1>
+    <form method="POST">
+      <input type="text" name="userid" placeholder="Enter User ID" required>
+      <input type="password" name="password" placeholder="Enter Password" required>
+      <button type="submit">Check Bill</button>
+    </form>
+
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+
+    {% if bills %}
+      <table>
+        <thead>
+          <tr>
+            <th>Bill No</th>
+            <th>Issue Date</th>
+            <th>Month</th>
+            <th>Water Bill</th>
+            <th>Sewer</th>
+            <th>VAT</th>
+            <th>Bill Amt</th>
+            <th>Surcharge</th>
+            <th>Total</th>
+            <th>Paid Date</th>
+            <th>Paid Amt</th>
+            <th>Status</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bills %}
+          <tr>
+            <td>{{ b["Bill No"] }}</td>
+            <td>{{ b["Issue Date"] }}</td>
+            <td>{{ b["Bill Month"] }}</td>
+            <td>{{ b["Water Bill"] }}</td>
+            <td>{{ b["Sewer Bill"] }}</td>
+            <td>{{ b["VAT"] }}</td>
+            <td>{{ b["Bill Amt"] }}</td>
+            <td>{{ b["Surcharge"] }}</td>
+            <td>{{ b["Total Bill"] }}</td>
+            <td>{{ b["Paid Date"] }}</td>
+            <td>{{ b["Paid Amt"] }}</td>
+            <td>{{ b["Status"] }}</td>
+            <td>{{ b["Balance"] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</body>
+</html>
