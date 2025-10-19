@@ -1,61 +1,87 @@
 from flask import Flask, render_template, request
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
+from dateutil.relativedelta import relativedelta # You might need to add this to requirements.txt
+
+# NOTE: If dateutil is not installed, you'll need to run:
+# pip install python-dateutil
+# and update your requirements.txt: python-dateutil
 
 app = Flask(__name__)
 
+# --- Helper Function to calculate Previous Month's Date Range ---
+def get_previous_month_dates():
+    """Calculates the start and end date of the previous month in dd/mm/yyyy format."""
+    # Find the first day of the current month
+    today = datetime.now().date()
+    first_day_of_current_month = today.replace(day=1)
+    
+    # Calculate the last day of the previous month
+    last_day_of_previous_month = first_day_of_current_month - relativedelta(days=1)
+    
+    # Calculate the first day of the previous month
+    first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
+    
+    # Format the dates as dd/mm/yyyy
+    from_date = first_day_of_previous_month.strftime('%d/%m/%Y')
+    to_date = last_day_of_previous_month.strftime('%d/%m/%Y')
+    
+    print(f"DEBUG: Auto-calculated dates: From={from_date}, To={to_date}")
+    return from_date, to_date
+
+# --- Main Bill Fetching Function ---
 def get_latest_bill(user_id, password):
-    # WASA Login/Account Status URL
-    url = "http://app.dwasa.org.bd/index.php?type_name=member&page_name=acc_index&panel_index=1"
-    
-    # POST Payload for Login
-    payload = {"userId": user_id, "password": password}
-    
-    # Standard User-Agent to mimic a regular browser
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.60 Safari/537.36"}
+    # Base URL for WASA Account/Login
+    base_url = "http://app.dwasa.org.bd/index.php?type_name=member&page_name=acc_index&panel_index="
+    login_url = base_url + "1" # Login Panel
+    search_url = base_url + "2" # Bill Search Panel (Assuming panel_index=2 is the search)
 
-    try:
-        # 1. Attempt the POST request
-        r = requests.post(url, data=payload, headers=headers, timeout=15) # Added timeout
-        print(f"DEBUG: Response Status Code from WASA: {r.status_code}") 
+    # Calculate dates for the previous month
+    from_date, to_date = get_previous_month_dates()
 
-    except requests.exceptions.RequestException as e:
-        # Handle network/connection errors
-        print(f"DEBUG: Request failed: {e}")
+    # Headers and Session Management
+    headers = {"User-Agent": "Mozilla/5.0"}
+    session = requests.Session() # Use a session to maintain login state (cookies)
+
+    # --- STEP 1: LOGIN ---
+    login_payload = {"userId": user_id, "password": password}
+    r_login = session.post(login_url, data=login_payload, headers=headers)
+    print(f"DEBUG: Login Status Code: {r_login.status_code}") 
+
+    if "Account No" not in r_login.text:
+        print("DEBUG: Login failed or page structure changed.")
         return None
 
-    # Check for login failure (The 'Account No' check is still a key indicator)
-    if "Account No" not in r.text:
-        # You should see this in the logs if login fails or the login page structure changed
-        print("DEBUG: Login failed or page structure changed. 'Account No' text not found on the page.")
-        return None
-        
-    print("DEBUG: Login successful. Starting data extraction.")
+    # --- STEP 2: POST REQUEST with Date Filter to Fetch Bills ---
+    # This is the crucial new step based on your observation (Assuming the date search is also a POST)
+    
+    # Payload for bill search, using the automatically generated dates
+    search_payload = {
+        "start_date": from_date, 
+        "end_date": to_date,
+        "search": "Search" # Assuming the button name is 'search'
+    }
+    
+    # We send the search request to the same URL or the search panel URL
+    # We will try the login URL first as it often handles all POSTs on the same page
+    r_bill = session.post(login_url, data=search_payload, headers=headers)
+    print(f"DEBUG: Bill Search Status Code: {r_bill.status_code}")
 
-    soup = BeautifulSoup(r.text, "html.parser")
-    # Using get_text with a better separator for easier parsing
-    text = soup.get_text(separator=" ", strip=True) 
+    # Use the HTML content from the bill search request
+    soup = BeautifulSoup(r_bill.text, "html.parser")
+    text = soup.get_text(separator=" ", strip=True)
 
-    # --- Account Info Extraction (Made more robust) ---
+    # --- Account Info Extraction (Reusing your original logic) ---
     def extract_between(text, start, end):
         try:
             start_index = text.find(start)
-            if start_index == -1:
-                return ""
-            
+            if start_index == -1: return ""
             text_after_start = text[start_index + len(start):]
             end_index = text_after_start.find(end)
-            
-            if end_index == -1:
-                # If end marker not found, take a sensible chunk or the rest
-                return text_after_start.split(" ")[0].strip() or text_after_start.strip()
-            
-            return text_after_start[:end_index].strip()
-        except Exception as e:
-            print(f"DEBUG: Error in extract_between: {e}. Check the delimiters.")
-            return ""
+            return text_after_start[:end_index].strip() if end_index != -1 else ""
+        except: return ""
 
-    # Re-using the successful keys, check the delimiter spaces carefully
     info = {
         "Account No": extract_between(text, "Account No :", "Opening Balance"),
         "Name": extract_between(text, "Name:", "Address:"),
@@ -64,60 +90,39 @@ def get_latest_bill(user_id, password):
         "Address": extract_between(text, "Address:", "Water Status:"),
     }
     
-    # Verify if account info extraction worked
-    if not info.get("Account No") or not info.get("Name"):
-         print("DEBUG: Critical account information extraction failed.")
-         # Even if logged in, if we can't parse the info, treat it as failure
-         return None
-         
-    # --- Bill Table Extraction (More robust search logic) ---
+    # --- Bill Table Extraction (Focusing on the table) ---
     bill_table = None
     all_tables = soup.find_all("table")
     
-    # 1. Look for a table that contains the typical Bill Header names
+    # Find the table that contains "Bill No"
     for table in all_tables:
         if "Bill No" in table.get_text() and "Bill Month" in table.get_text():
             bill_table = table
-            print("DEBUG: Found bill table using header keywords.")
             break
             
-    # 2. Fallback to the original logic (last table)
+    # Fallback to the last table if specific search fails
     if not bill_table and all_tables:
         bill_table = all_tables[-1]
-        print("DEBUG: Falling back to the last table.")
 
     bill = None
     if bill_table:
         rows = bill_table.find_all("tr")
 
-        # Start from the second row to skip the header (if present)
+        # Skip the header row (rows[0])
         for row in rows[1:]: 
-            # Get text from table data cells, clean up non-breaking spaces
             cols = [c.get_text(strip=True).replace('\xa0', ' ').strip() for c in row.find_all("td")]
             
-            # Check if it's a valid bill row (must have at least 13 columns and a numeric Bill No)
+            # Check for a valid bill row (13 columns, numeric Bill No, and not the 'Total' row)
             if len(cols) >= 13 and cols[0] and cols[0].isdigit():
-                # Extracting the latest/first valid bill row
+                # This is a bill row, we only want the previous month's bill
+                # Since we filtered by date, the first valid row *should* be the one we want.
                 bill = {
-                    "Bill No": cols[0],
-                    "Issue Date": cols[1],
-                    "Bill Month": cols[2],
-                    "Water Bill": cols[3],
-                    "Sewer Bill": cols[4],
-                    "VAT": cols[5],
-                    "Bill Amt": cols[6],
-                    "Sur Charge": cols[7],
-                    "Total Bill": cols[8],
-                    "Paid Date": cols[9],
-                    "Paid Amt": cols[10],
-                    "Status": cols[11],
-                    "Balance": cols[12],
+                    "Bill Month": cols[2],     # Column 3
+                    "Total Bill": cols[8],     # Column 9
+                    "Status": cols[11],        # Column 12
                 }
-                print(f"DEBUG: Successfully extracted bill for month: {bill['Bill Month']}")
-                break # Found the first valid bill, stop and use it
-
-    if not bill:
-        print("DEBUG: No bill data found in the parsed tables.")
+                print(f"DEBUG: Found previous month's bill: {bill['Bill Month']}")
+                break 
 
     return {"info": info, "bill": bill}
 
@@ -127,15 +132,21 @@ def home():
     data = None
     error = None
     if request.method == "POST":
+        # Check for the required 'python-dateutil' package
+        try:
+            from dateutil.relativedelta import relativedelta
+        except ImportError:
+            error = "Dependency error: 'python-dateutil' is not installed. Please add it to requirements.txt and run pip install."
+            return render_template("index.html", data=data, error=error)
+            
         user_id = request.form["userid"]
         password = request.form["password"]
         data = get_latest_bill(user_id, password)
-        # Check for both a successful data object AND if key account info exists
+        
         if not data or not data.get('info', {}).get('Account No'):
-            error = "Invalid account, login failed, or no bill data found. Please verify your Account No and Password."
+            error = "Invalid account, login failed, or bill data not found for the previous month."
     return render_template("index.html", data=data, error=error)
 
 
 if __name__ == "__main__":
-    # Running on an accessible port for local testing
     app.run(debug=True, port=5000)
