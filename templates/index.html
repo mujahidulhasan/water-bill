@@ -2,17 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DWASA Water Bill Checker</title>
+  <title>Dhaka WASA Bill Checker</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="container">
-    <h1>💧 DWASA Water Bill Checker</h1>
-
-    <form method="POST" class="form-box">
-      <input type="text" name="userid" placeholder="Enter Account No" required>
-      <input type="password" name="password" placeholder="Enter Password" required>
+    <h1>💧 Dhaka WASA Bill Checker</h1>
+    <form method="POST">
+      <input type="text" name="userid" placeholder="Account Number" required>
+      <input type="password" name="password" placeholder="Password" required>
       <button type="submit">Check Bill</button>
     </form>
 
@@ -23,29 +21,33 @@
     {% if data %}
       <div class="card">
         <h2>Account Information</h2>
-        <p><strong>Account No:</strong> {{ data.info["Account No"] }}</p>
-        <p><strong>Name:</strong> {{ data.info["Name"] }}</p>
-        <p><strong>Meter No:</strong> {{ data.info["Meter No"] }}</p>
-        <p><strong>Cell No:</strong> {{ data.info["Cell No"] }}</p>
-        <p><strong>Address:</strong> {{ data.info["Address"] }}</p>
+        <ul>
+          <li><strong>Account No:</strong> {{ data.info['Account No'] }}</li>
+          <li><strong>Name:</strong> {{ data.info['Name'] }}</li>
+          <li><strong>Address:</strong> {{ data.info['Address'] }}</li>
+          <li><strong>Meter No:</strong> {{ data.info['Meter No'] }}</li>
+          <li><strong>Cell No:</strong> {{ data.info['Cell No'] }}</li>
+        </ul>
       </div>
 
       {% if data.bill %}
       <div class="card">
         <h2>Latest Bill Details</h2>
-        <p><strong>Bill Month:</strong> {{ data.bill["Bill Month"] }}</p>
-        <p><strong>Issue Date:</strong> {{ data.bill["Issue Date"] }}</p>
-        <p><strong>Water Bill:</strong> {{ data.bill["Water Bill"] }}</p>
-        <p><strong>VAT:</strong> {{ data.bill["VAT"] }}</p>
-        <p><strong>Total Bill:</strong> {{ data.bill["Total Bill"] }}</p>
-        <p><strong>Paid Date:</strong> {{ data.bill["Paid Date"] }}</p>
-        <p><strong>Status:</strong>
-          {% if data.bill["Status"] == "Paid" %}
-            <span class="status-paid">✅ Paid</span>
-          {% else %}
-            <span class="status-due">⚠️ Unpaid</span>
-          {% endif %}
-        </p>
+        <ul>
+          <li><strong>Bill Month:</strong> {{ data.bill['Bill Month'] }}</li>
+          <li><strong>Issue Date:</strong> {{ data.bill['Issue Date'] }}</li>
+          <li><strong>Water Bill:</strong> {{ data.bill['Water Bill'] }}</li>
+          <li><strong>VAT:</strong> {{ data.bill['VAT'] }}</li>
+          <li><strong>Total Bill:</strong> {{ data.bill['Total Bill'] }}</li>
+          <li><strong>Paid Date:</strong> {{ data.bill['Paid Date'] }}</li>
+          <li><strong>Status:</strong>
+            {% if "unpaid" in data.bill['Status']|lower %}
+              ⚠️ Unpaid
+            {% else %}
+              ✅ Paid
+            {% endif %}
+          </li>
+        </ul>
       </div>
       {% endif %}
     {% endif %}
