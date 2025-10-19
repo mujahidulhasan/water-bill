@@ -4,13 +4,11 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from dateutil.relativedelta import relativedelta # For calculating previous month's date
 
-# NOTE: Ensure 'python-dateutil' is in your requirements.txt
-
 app = Flask(__name__)
 
-# --- Helper Function to calculate Previous Month's Date Range ---
+# --- Helper Function to calculate Previous Month's Date Range (FORMAT CHANGED) ---
 def get_previous_month_dates():
-    """Calculates the start and end date of the previous month in dd/mm/yyyy format."""
+    """Calculates the start and end date of the previous month in dd-mm-yyyy format."""
     try:
         # Find the first day of the current month
         today = datetime.now().date()
@@ -22,9 +20,9 @@ def get_previous_month_dates():
         # Calculate the first day of the previous month
         first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
         
-        # Format the dates as dd/mm/yyyy (WASA input field format)
-        from_date = first_day_of_previous_month.strftime('%d/%m/%Y') 
-        to_date = last_day_of_previous_month.strftime('%d/%m/%Y')
+        # *** CHANGED FORMAT TO USE DASHES (-) ***
+        from_date = first_day_of_previous_month.strftime('%d-%m-%Y') 
+        to_date = last_day_of_previous_month.strftime('%d-%m-%Y')
         
         print(f"DEBUG: Auto-calculated dates: From={from_date}, To={to_date}")
         return from_date, to_date
@@ -53,10 +51,9 @@ def get_latest_bill(user_id, password):
 
     # Headers and Session Management
     headers = {"User-Agent": "Mozilla/5.0"}
-    session = requests.Session() # Essential for maintaining the logged-in state (cookies)
+    session = requests.Session() 
 
     # --- STEP 1: LOGIN with hidden parameters ---
-    # Added 'tab_val' as it might be a required hidden field for the POST request
     login_payload = {
         "userId": user_id, 
         "password": password,
@@ -77,17 +74,15 @@ def get_latest_bill(user_id, password):
     
     print("DEBUG: Login successful. Session established.")
 
-    # --- STEP 2: POST REQUEST with CORRECT Date Parameters to Fetch Bills ---
-    # We use the confirmed parameter names from the HTML: date1, date2, and btn=Search
+    # --- STEP 2: POST REQUEST with CORRECT Date Parameters and FORMAT to Fetch Bills ---
     search_payload = {
-        "date1": from_date,     # Confirmed From date parameter
-        "date2": to_date,       # Confirmed To date parameter
-        "btn": "Search",        # The search button's name and value
-        "tab_val": "3",         # Hidden field confirmed from HTML
+        "date1": from_date,     # Using dd-mm-yyyy format now
+        "date2": to_date,       # Using dd-mm-yyyy format now
+        "btn": "Search",        
+        "tab_val": "3",         
     }
     
     try:
-        # POSTing to the same URL, but with the search parameters
         r_bill = session.post(wasa_url, data=search_payload, headers=headers, timeout=10)
         print(f"DEBUG: Bill Search Status Code: {r_bill.status_code}")
     except requests.exceptions.RequestException as e:
@@ -115,9 +110,8 @@ def get_latest_bill(user_id, password):
     bill_table = None
     all_tables = soup.find_all("table")
     
-    # Look for the table with the specific header row (class="tr_title")
+    # Look for the table with the specific header row
     for table in all_tables:
-        # Looking for the table with the header row that contains 'Bill No'
         if "Bill No" in table.get_text() and "Issue Date" in table.get_text():
             bill_table = table
             print("DEBUG: Found bill table using header keywords.")
@@ -127,21 +121,18 @@ def get_latest_bill(user_id, password):
     if bill_table:
         rows = bill_table.find_all("tr")
 
-        # Iterate through rows to find the valid bill data
         for row in rows: 
-            # Get all <td> elements and clean the text
             cols = [c.get_text(strip=True).replace('\xa0', ' ').strip() for c in row.find_all("td")]
             
             # Check for a valid bill row (at least 13 columns, numeric Bill No, and not the 'Total' row)
             if len(cols) >= 13 and cols[0] and cols[0].isdigit():
-                # Extracting the simplified bill details as requested
                 bill = {
                     "Bill Month": cols[2],     # Column 3
                     "Total Bill": cols[8],     # Column 9
                     "Status": cols[11],        # Column 12
                 }
                 print(f"DEBUG: Found previous month's bill: {bill['Bill Month']}")
-                break # Use the first valid row found
+                break 
 
     if not bill:
         print("DEBUG: No bill data found in the parsed tables for the date range.")
@@ -154,9 +145,7 @@ def home():
     data = None
     error = None
     if request.method == "POST":
-        # Check for the required 'python-dateutil' package
         try:
-            # This line ensures the dependency is available, preventing a crash
             from dateutil.relativedelta import relativedelta 
         except ImportError:
             error = "Dependency error: 'python-dateutil' is not installed. Please add it to requirements.txt and run pip install."
@@ -167,7 +156,6 @@ def home():
         data = get_latest_bill(user_id, password)
         
         if not data or not data.get('info', {}).get('Account No'):
-            # The error message remains helpful for debugging
             error = "Invalid account, login failed, or bill data not found for the previous month. Check your credentials and Render logs for more details."
     return render_template("index.html", data=data, error=error)
 
