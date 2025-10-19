@@ -32,6 +32,17 @@ def get_previous_month_dates():
         print(f"DEBUG: Date calculation failed: {e}")
         return "", ""
 
+# --- Helper Function for Text Extraction ---
+def extract_between(text, start, end):
+    """Extracts text between two specific delimiters."""
+    try:
+        start_index = text.find(start)
+        if start_index == -1: return ""
+        text_after_start = text[start_index + len(start):]
+        end_index = text_after_start.find(end)
+        return text_after_start[:end_index].strip() if end_index != -1 else ""
+    except: return ""
+
 # --- Main Bill Fetching Function ---
 def get_latest_bill(user_id, password):
     # Base URL where all POST requests (Login and Search) go
@@ -44,8 +55,14 @@ def get_latest_bill(user_id, password):
     headers = {"User-Agent": "Mozilla/5.0"}
     session = requests.Session() # Essential for maintaining the logged-in state (cookies)
 
-    # --- STEP 1: LOGIN ---
-    login_payload = {"userId": user_id, "password": password}
+    # --- STEP 1: LOGIN with hidden parameters ---
+    # Added 'tab_val' as it might be a required hidden field for the POST request
+    login_payload = {
+        "userId": user_id, 
+        "password": password,
+        "tab_val": "3" 
+    }
+    
     try:
         r_login = session.post(wasa_url, data=login_payload, headers=headers, timeout=10)
         print(f"DEBUG: Login Status Code: {r_login.status_code}") 
@@ -53,9 +70,11 @@ def get_latest_bill(user_id, password):
         print(f"DEBUG: Login request failed: {e}")
         return None
 
+    # Check for login success
     if "Account No" not in r_login.text:
         print("DEBUG: Login failed or 'Account No' text not found.")
         return None
+    
     print("DEBUG: Login successful. Session established.")
 
     # --- STEP 2: POST REQUEST with CORRECT Date Parameters to Fetch Bills ---
@@ -64,7 +83,7 @@ def get_latest_bill(user_id, password):
         "date1": from_date,     # Confirmed From date parameter
         "date2": to_date,       # Confirmed To date parameter
         "btn": "Search",        # The search button's name and value
-        "tab_val": "3",         # Hidden field value confirmed from HTML
+        "tab_val": "3",         # Hidden field confirmed from HTML
     }
     
     try:
@@ -80,15 +99,6 @@ def get_latest_bill(user_id, password):
     text = soup.get_text(separator=" ", strip=True)
 
     # --- Account Info Extraction ---
-    def extract_between(text, start, end):
-        try:
-            start_index = text.find(start)
-            if start_index == -1: return ""
-            text_after_start = text[start_index + len(start):]
-            end_index = text_after_start.find(end)
-            return text_after_start[:end_index].strip() if end_index != -1 else ""
-        except: return ""
-
     info = {
         "Account No": extract_between(text, "Account No :", "Opening Balance"),
         "Name": extract_between(text, "Name:", "Address:"),
@@ -107,9 +117,8 @@ def get_latest_bill(user_id, password):
     
     # Look for the table with the specific header row (class="tr_title")
     for table in all_tables:
-        header_row = table.find("tr", class_="tr_title")
-        # Check for header row and the presence of 'Bill No.'
-        if header_row and "Bill No" in header_row.get_text():
+        # Looking for the table with the header row that contains 'Bill No'
+        if "Bill No" in table.get_text() and "Issue Date" in table.get_text():
             bill_table = table
             print("DEBUG: Found bill table using header keywords.")
             break
@@ -123,7 +132,7 @@ def get_latest_bill(user_id, password):
             # Get all <td> elements and clean the text
             cols = [c.get_text(strip=True).replace('\xa0', ' ').strip() for c in row.find_all("td")]
             
-            # Check for a valid bill row (at least 13 columns and a numeric Bill No)
+            # Check for a valid bill row (at least 13 columns, numeric Bill No, and not the 'Total' row)
             if len(cols) >= 13 and cols[0] and cols[0].isdigit():
                 # Extracting the simplified bill details as requested
                 bill = {
@@ -132,7 +141,7 @@ def get_latest_bill(user_id, password):
                     "Status": cols[11],        # Column 12
                 }
                 print(f"DEBUG: Found previous month's bill: {bill['Bill Month']}")
-                break # Stop after finding the first valid bill row (the one in the filtered date range)
+                break # Use the first valid row found
 
     if not bill:
         print("DEBUG: No bill data found in the parsed tables for the date range.")
@@ -158,6 +167,7 @@ def home():
         data = get_latest_bill(user_id, password)
         
         if not data or not data.get('info', {}).get('Account No'):
+            # The error message remains helpful for debugging
             error = "Invalid account, login failed, or bill data not found for the previous month. Check your credentials and Render logs for more details."
     return render_template("index.html", data=data, error=error)
 
