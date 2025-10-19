@@ -2,61 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DWASA Bill Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DWASA Water Bill Checker</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="container">
-    <h1>💧 DWASA Bill Checker</h1>
-    <form method="POST">
-      <input type="text" name="userid" placeholder="Enter User ID" required>
+    <h1>💧 DWASA Water Bill Checker</h1>
+
+    <form method="POST" class="form-box">
+      <input type="text" name="userid" placeholder="Enter Account No" required>
       <input type="password" name="password" placeholder="Enter Password" required>
       <button type="submit">Check Bill</button>
     </form>
 
     {% if error %}
-      <p class="error">{{ error }}</p>
+      <div class="error">{{ error }}</div>
     {% endif %}
 
-    {% if bills %}
-      <table>
-        <thead>
-          <tr>
-            <th>Bill No</th>
-            <th>Issue Date</th>
-            <th>Month</th>
-            <th>Water Bill</th>
-            <th>Sewer</th>
-            <th>VAT</th>
-            <th>Bill Amt</th>
-            <th>Surcharge</th>
-            <th>Total</th>
-            <th>Paid Date</th>
-            <th>Paid Amt</th>
-            <th>Status</th>
-            <th>Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for b in bills %}
-          <tr>
-            <td>{{ b["Bill No"] }}</td>
-            <td>{{ b["Issue Date"] }}</td>
-            <td>{{ b["Bill Month"] }}</td>
-            <td>{{ b["Water Bill"] }}</td>
-            <td>{{ b["Sewer Bill"] }}</td>
-            <td>{{ b["VAT"] }}</td>
-            <td>{{ b["Bill Amt"] }}</td>
-            <td>{{ b["Surcharge"] }}</td>
-            <td>{{ b["Total Bill"] }}</td>
-            <td>{{ b["Paid Date"] }}</td>
-            <td>{{ b["Paid Amt"] }}</td>
-            <td>{{ b["Status"] }}</td>
-            <td>{{ b["Balance"] }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    {% if data %}
+      <div class="card">
+        <h2>Account Information</h2>
+        <p><strong>Account No:</strong> {{ data.info["Account No"] }}</p>
+        <p><strong>Name:</strong> {{ data.info["Name"] }}</p>
+        <p><strong>Meter No:</strong> {{ data.info["Meter No"] }}</p>
+        <p><strong>Cell No:</strong> {{ data.info["Cell No"] }}</p>
+        <p><strong>Address:</strong> {{ data.info["Address"] }}</p>
+      </div>
+
+      {% if data.bill %}
+      <div class="card">
+        <h2>Latest Bill Details</h2>
+        <p><strong>Bill Month:</strong> {{ data.bill["Bill Month"] }}</p>
+        <p><strong>Issue Date:</strong> {{ data.bill["Issue Date"] }}</p>
+        <p><strong>Water Bill:</strong> {{ data.bill["Water Bill"] }}</p>
+        <p><strong>VAT:</strong> {{ data.bill["VAT"] }}</p>
+        <p><strong>Total Bill:</strong> {{ data.bill["Total Bill"] }}</p>
+        <p><strong>Paid Date:</strong> {{ data.bill["Paid Date"] }}</p>
+        <p><strong>Status:</strong>
+          {% if data.bill["Status"] == "Paid" %}
+            <span class="status-paid">✅ Paid</span>
+          {% else %}
+            <span class="status-due">⚠️ Unpaid</span>
+          {% endif %}
+        </p>
+      </div>
+      {% endif %}
     {% endif %}
   </div>
 </body>
